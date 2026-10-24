@@ -55,7 +55,8 @@ def predict_texts(texts, pipeline, labels, config):
         if not isinstance(text, str) or not text.strip():
             raise ValueError(f"Item {i} is empty or not text.")
 
-    threshold = config["prediction"]["threshold"]
+    default_threshold = config["prediction"]["threshold"]
+    thresholds = config["prediction"].get("label_thresholds", {})
     low, high = config["prediction"]["review_band"]
 
     # Each row holds six independent scores, in the saved label order
@@ -64,7 +65,10 @@ def predict_texts(texts, pipeline, labels, config):
     results = []
     for text, row in zip(texts, all_scores):
         scores = {label: round(float(s), 4) for label, s in zip(labels, row)}
-        flagged = [label for label, s in scores.items() if s >= threshold]
+        flagged = [
+            label for label, s in scores.items()
+            if s >= thresholds.get(label, default_threshold)
+        ]
         results.append({
             "text": text,
             "label": "toxic" if flagged else "non_toxic",

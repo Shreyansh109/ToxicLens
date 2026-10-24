@@ -23,6 +23,14 @@
   },
   "prediction": {
     "threshold": 0.5,
+    "label_thresholds": {
+      "toxic": 0.30,
+      "severe_toxic": 0.16,
+      "obscene": 0.18,
+      "threat": 0.05,
+      "insult": 0.21,
+      "identity_hate": 0.20
+    },
     "review_band": [0.3, 0.7]
   }
 }

@@ -5,6 +5,7 @@ Run from the project root:
 """
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 from sklearn.metrics import confusion_matrix, precision_recall_fscore_support
 
@@ -32,14 +33,16 @@ def score_one_label(y_true, y_pred):
 def main():
     config = load_config()
     pipeline, labels = load_model(config)
-    threshold = config["prediction"]["threshold"]
+    default_threshold = config["prediction"]["threshold"]
+    label_thresholds = config["prediction"].get("label_thresholds", {})
+    thresholds = np.array([label_thresholds.get(l, default_threshold) for l in labels])
 
     val_path = Path(config["paths"]["processed_data"]) / "validation_split.csv"
     val = pd.read_csv(val_path)
 
     scores = pipeline.predict_proba(val["comment_text"])
     y_true = val[labels].values
-    y_pred = (scores >= threshold).astype(int)
+    y_pred = (scores >= thresholds).astype(int)
 
     rows = {}
     for i, label in enumerate(labels):
@@ -51,9 +54,10 @@ def main():
     rows["any_label"] = score_one_label(any_true, any_pred)
 
     report = pd.DataFrame.from_dict(rows, orient="index")
+    report.insert(0, "threshold", list(thresholds) + [np.nan])
 
     pd.set_option("display.width", 200)
-    print(f"Validation comments: {len(val)}   Threshold: {threshold}")
+    print(f"Validation comments: {len(val)}")
     print()
     print(report.round(3))
     print()
@@ -62,7 +66,7 @@ def main():
 
     reports_dir = Path(config["paths"].get("reports", "reports"))
     reports_dir.mkdir(parents=True, exist_ok=True)
-    out_path = reports_dir / "baseline_validation_metrics.csv"
+    out_path = reports_dir / "baseline_validation_metrics_tuned.csv"
     report.round(4).to_csv(out_path)
     print()
     print("Saved report to", out_path)
