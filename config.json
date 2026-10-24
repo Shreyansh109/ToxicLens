@@ -16,9 +16,13 @@
     "ngram_range": [1, 2],
     "min_df": 2
   },
-  "logistic_regression": {
+    "logistic_regression": {
     "C": 1.0,
     "max_iter": 1000,
     "class_weight": null
+  },
+  "prediction": {
+    "threshold": 0.5,
+    "review_band": [0.3, 0.7]
   }
 }
