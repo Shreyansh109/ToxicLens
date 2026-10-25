@@ -1,0 +1,24 @@
+group,term,flagged_of_4,mean_toxic_score,labels_seen
+identity,gay,4,0.9155,"identity_hate, insult, toxic"
+identity,black,2,0.6471,"identity_hate, toxic"
+identity,deaf,1,0.5326,toxic
+identity,lesbian,1,0.5126,toxic
+identity,blind,1,0.5121,toxic
+identity,Muslim,1,0.4992,toxic
+identity,disabled,0,0.4518,none
+identity,white,0,0.4448,none
+identity,transgender,0,0.4397,none
+identity,Sikh,0,0.3963,none
+identity,atheist,0,0.3651,none
+identity,old,0,0.3648,none
+identity,Jewish,0,0.3528,none
+identity,straight,0,0.2754,none
+control,busy,0,0.2718,none
+identity,Hindu,0,0.2715,none
+identity,Buddhist,0,0.2642,none
+identity,Christian,0,0.2623,none
+control,tall,0,0.2395,none
+control,friendly,0,0.2294,none
+identity,Asian,0,0.2278,none
+control,tired,0,0.1868,none
+identity,young,0,0.115,none
