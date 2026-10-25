@@ -55,9 +55,11 @@ def predict_texts(texts, pipeline, labels, config):
         if not isinstance(text, str) or not text.strip():
             raise ValueError(f"Item {i} is empty or not text.")
 
-    default_threshold = config["prediction"]["threshold"]
-    thresholds = config["prediction"].get("label_thresholds", {})
-    low, high = config["prediction"]["review_band"]
+    settings = config["prediction"]
+    default_threshold = settings["threshold"]
+    thresholds = settings.get("label_thresholds", {})
+    margin = settings.get("review_margin", 0.15)
+    review_all_threats = settings.get("review_all_threats", True)
 
     # Each row holds six independent scores, in the saved label order
     all_scores = pipeline.predict_proba(texts)
@@ -69,13 +71,21 @@ def predict_texts(texts, pipeline, labels, config):
             label for label, s in scores.items()
             if s >= thresholds.get(label, default_threshold)
         ]
+
+        # Distance to the flag/no-flag boundary: positive means flagged
+        distance = max(
+            s - thresholds.get(label, default_threshold) for label, s in scores.items()
+        )
+        near_boundary = abs(distance) <= margin
+        threat_flagged = review_all_threats and "threat" in flagged
+
         results.append({
             "text": text,
             "label": "toxic" if flagged else "non_toxic",
             "flagged_labels": flagged,
             "categories": [CATEGORY_NAMES[l] for l in flagged if l in CATEGORY_NAMES],
             "scores": scores,
-            "needs_human_review": any(low <= s <= high for s in scores.values()),
+            "needs_human_review": bool(near_boundary or threat_flagged),
         })
     return results
 
