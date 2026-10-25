@@ -19,17 +19,17 @@
     "logistic_regression": {
     "C": 1.0,
     "max_iter": 1000,
-    "class_weight": null
+    "class_weight": "balanced"
   },
   "prediction": {
     "threshold": 0.5,
     "label_thresholds": {
-      "toxic": 0.30,
-      "severe_toxic": 0.16,
-      "obscene": 0.18,
-      "threat": 0.05,
-      "insult": 0.21,
-      "identity_hate": 0.20
+      "toxic": 0.69,
+      "severe_toxic": 0.96,
+      "obscene": 0.73,
+      "threat": 0.50,
+      "insult": 0.76,
+      "identity_hate": 0.96
     },
     "review_band": [0.3, 0.7]
   }
