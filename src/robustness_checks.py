@@ -3,12 +3,14 @@
 These are small probes, not measurements. Run from the project root:
     python -m src.robustness_checks
 """
+import argparse
 from pathlib import Path
 
 import pandas as pd
 
 from src.data_preprocessing import load_config
 from src.predict import load_model, predict_texts
+from src.transformer_scoring import load_transformer
 
 # (group, text, expected result). The expectations are a judgement, not ground truth.
 CHALLENGE_SET = [
@@ -92,8 +94,21 @@ def run_identity_probe(pipeline, labels, config):
 
 
 def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--model", choices=["baseline", "transformer"], default="baseline")
+    args = parser.parse_args()
+
     config = load_config()
-    pipeline, labels = load_model(config)
+    if args.model == "transformer":
+        pipeline, labels = load_transformer(config)
+        config = {**config, "prediction": config["prediction_transformer"]}
+        suffix = "_transformer"
+    else:
+        pipeline, labels = load_model(config)
+        suffix = ""
+    print("Model:", args.model)
+    print()
+
     reports_dir = Path(config["paths"].get("reports", "reports"))
     reports_dir.mkdir(parents=True, exist_ok=True)
 
@@ -109,7 +124,7 @@ def main():
                   f"flagged: {r['flagged']} | review: {r['review']}")
         print()
     print(f"Overall: {int(challenge['match'].sum())} of {len(challenge)} as expected")
-    challenge.to_csv(reports_dir / "robustness_challenge_set.csv", index=False)
+    challenge.to_csv(reports_dir / f"robustness_challenge_set{suffix}.csv", index=False)
 
     identity = run_identity_probe(pipeline, labels, config)
     print()
@@ -118,7 +133,7 @@ def main():
     print("=" * 70)
     pd.set_option("display.width", 200)
     print(identity.round(3).to_string(index=False))
-    identity.round(4).to_csv(reports_dir / "robustness_identity_probe.csv", index=False)
+    identity.round(4).to_csv(reports_dir / f"robustness_identity_probe{suffix}.csv", index=False)
     print()
     print("Saved results to", reports_dir)
 

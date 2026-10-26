@@ -42,5 +42,18 @@
     "epochs": 2,
     "pos_weight_power": 0.5,
     "use_fp16": false
+  },
+  "prediction_transformer": {
+    "threshold": 0.5,
+    "label_thresholds": {
+      "toxic": 0.81,
+      "severe_toxic": 0.81,
+      "obscene": 0.83,
+      "threat": 0.10,
+      "insult": 0.72,
+      "identity_hate": 0.86
+    },
+    "review_margin": 0.15,
+    "review_all_threats": true
   }
 }

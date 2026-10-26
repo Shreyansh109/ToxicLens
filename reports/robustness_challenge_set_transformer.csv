@@ -1,0 +1,25 @@
+group,text,expected,model,flagged,review,match
+"slang, harmless",This song absolutely slaps.,non_toxic,non_toxic,none,True,True
+"slang, harmless",You're killing it at work lately!,non_toxic,non_toxic,none,True,True
+"slang, harmless",That guitar solo was sick.,non_toxic,non_toxic,none,True,True
+"slang, harmless","Damn, that sunset is gorgeous.",non_toxic,non_toxic,none,True,True
+"slang, harmless","I'm dead, that meme is hilarious.",non_toxic,non_toxic,none,True,True
+"slang, harmless","Bro you destroyed me in that game, well played.",non_toxic,non_toxic,none,True,True
+misspellings,you are such an id10t,toxic,toxic,toxic,True,True
+misspellings,u r so stup1d lol,toxic,non_toxic,none,True,False
+misspellings,go away you f*cking loser,toxic,toxic,"toxic, severe_toxic, obscene, insult",False,True
+misspellings,shut up u moronn,toxic,toxic,"toxic, obscene, insult",False,True
+misspellings,"thx 4 ur help, realy apreciate it",non_toxic,non_toxic,none,True,True
+misspellings,"ur article edits r grate, thanx",non_toxic,non_toxic,none,True,True
+ambiguous or quoted,I hate Mondays.,non_toxic,toxic,toxic,True,False
+ambiguous or quoted,I hate it when my code doesn't compile.,non_toxic,non_toxic,none,True,True
+ambiguous or quoted,Calling someone an idiot is against the rules here.,non_toxic,toxic,"toxic, insult",False,False
+ambiguous or quoted,He said 'you are stupid' and I reported it.,non_toxic,toxic,"toxic, insult",False,False
+ambiguous or quoted,This plan is stupid and I disagree with it.,non_toxic,toxic,toxic,False,False
+ambiguous or quoted,I could kill for a coffee right now.,non_toxic,non_toxic,none,True,True
+threats and violent words,I'm going to kill you.,toxic,toxic,"toxic, threat",True,True
+threats and violent words,"Watch your back, I know where you live.",toxic,non_toxic,none,True,False
+threats and violent words,I will destroy you at chess tonight.,non_toxic,toxic,"toxic, threat",True,False
+threats and violent words,If you come to my house again I'll hurt you.,toxic,toxic,"toxic, threat",True,True
+romanised Hindi (limitation probe),tum bahut bekar insaan ho,toxic,non_toxic,none,True,False
+romanised Hindi (limitation probe),bhai tu kamaal ka banda hai,non_toxic,non_toxic,none,True,True
