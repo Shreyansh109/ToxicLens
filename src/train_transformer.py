@@ -1,10 +1,9 @@
 """Fine-tunes DistilBERT for multi-label toxicity classification.
 
-Quick speed and memory test (trains on 2,000 comments, saves nothing):
-    python -m src.train_transformer --sample 2000 --epochs 1
-    python -m src.train_transformer --sample 2000 --epochs 1 --fp16
+Quick test of the whole pipeline (small sample, saves to models/transformer_test):
+    python -m src.train_transformer --sample 500 --epochs 1
 
-Full training (saves the model to models/transformer):
+Full training (validates after every epoch, keeps the best model in models/transformer):
     python -m src.train_transformer
 """
 import argparse
@@ -21,6 +20,8 @@ from torch.utils.data import DataLoader, Dataset
 from transformers import AutoModelForSequenceClassification, AutoTokenizer
 
 from src.data_preprocessing import load_config
+
+THRESHOLD_GRID = [i / 100 for i in range(2, 99)]
 
 
 class CommentDataset(Dataset):
@@ -47,10 +48,45 @@ def make_collate(tokenizer, max_length):
     return collate
 
 
+def best_f1(scores, actual):
+    """Returns the best F1 over a grid of thresholds, and the threshold that gave it."""
+    best_value, best_threshold = 0.0, 0.5
+    for t in THRESHOLD_GRID:
+        pred = scores >= t
+        tp = int((pred & actual).sum())
+        fp = int((pred & ~actual).sum())
+        fn = int((~pred & actual).sum())
+        denominator = 2 * tp + fp + fn
+        f1 = 2 * tp / denominator if denominator else 0.0
+        if f1 > best_value:
+            best_value, best_threshold = f1, t
+    return best_value, best_threshold
+
+
+def predict_scores(model, loader, device):
+    model.eval()
+    all_scores = []
+    with torch.no_grad():
+        for encoded, _ in loader:
+            encoded = {k: v.to(device) for k, v in encoded.items()}
+            logits = model(**encoded).logits
+            all_scores.append(torch.sigmoid(logits.float()).cpu().numpy())
+    model.train()
+    return np.concatenate(all_scores)
+
+
+def save_model(model, tokenizer, labels, out_dir):
+    out_dir.mkdir(parents=True, exist_ok=True)
+    model.save_pretrained(out_dir)
+    tokenizer.save_pretrained(out_dir)
+    with open(out_dir / "labels.json", "w") as f:
+        json.dump(labels, f)
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--sample", type=int, default=0,
-                        help="train on N random comments only (test run, nothing is saved)")
+                        help="test run: train on N random comments, validate on 1,000")
     parser.add_argument("--epochs", type=int, default=None)
     parser.add_argument("--batch-size", type=int, default=None)
     parser.add_argument("--fp16", action="store_true", help="use half precision")
@@ -72,17 +108,20 @@ def main():
         raise RuntimeError("No GPU found. Run: python -m src.check_gpu")
     device = torch.device("cuda")
 
-    train_path = Path(config["paths"]["processed_data"]) / "train_split.csv"
-    train = pd.read_csv(train_path)
+    folder = Path(config["paths"]["processed_data"])
+    train = pd.read_csv(folder / "train_split.csv")
+    val = pd.read_csv(folder / "validation_split.csv")
     full_size = len(train)
     if args.sample:
         train = train.sample(n=args.sample, random_state=seed)
+        val = val.head(1000)
     texts = train["comment_text"].tolist()
     y = train[labels].values.astype(np.float32)
+    y_val = val[labels].values == 1
 
     print(f"Model: {cfg['model_name']}")
-    print(f"Training comments: {len(y)}   Epochs: {epochs}   Batch size: {batch_size}   "
-          f"Max length: {cfg['max_length']}")
+    print(f"Training comments: {len(y)}   Validation comments: {len(val)}   Epochs: {epochs}   "
+          f"Batch size: {batch_size}   Max length: {cfg['max_length']}")
     print(f"Precision: {'half (fp16)' if use_fp16 else 'full (fp32)'}")
 
     positives = y.sum(axis=0)
@@ -98,12 +137,19 @@ def main():
         cfg["model_name"], num_labels=len(labels), problem_type="multi_label_classification"
     ).to(device)
 
+    collate = make_collate(tokenizer, cfg["max_length"])
     loader = DataLoader(
         CommentDataset(texts, y),
         batch_size=batch_size,
         shuffle=True,
-        collate_fn=make_collate(tokenizer, cfg["max_length"]),
+        collate_fn=collate,
         generator=torch.Generator().manual_seed(seed),
+    )
+    val_loader = DataLoader(
+        CommentDataset(val["comment_text"].tolist(), val[labels].values.astype(np.float32)),
+        batch_size=32,
+        shuffle=False,
+        collate_fn=collate,
     )
 
     optimizer = torch.optim.AdamW(model.parameters(), lr=cfg["learning_rate"], weight_decay=0.01)
@@ -118,6 +164,15 @@ def main():
     scheduler = LambdaLR(optimizer, lr_factor)
     scaler = torch.amp.GradScaler("cuda", enabled=use_fp16)
 
+    models_dir = Path(config["paths"]["models"])
+    out_dir = models_dir / ("transformer_test" if args.sample else "transformer")
+    reports_dir = Path(config["paths"].get("reports", "reports"))
+    reports_dir.mkdir(parents=True, exist_ok=True)
+
+    log_every = max(25, total_steps // 40)
+    history = []
+    best_macro = -1.0
+
     torch.cuda.reset_peak_memory_stats()
     torch.cuda.synchronize()
     start = time.time()
@@ -126,6 +181,7 @@ def main():
     running_loss = 0.0
 
     for epoch in range(1, epochs + 1):
+        epoch_start = time.time()
         for encoded, batch_labels in loader:
             encoded = {k: v.to(device) for k, v in encoded.items()}
             batch_labels = batch_labels.to(device)
@@ -150,34 +206,50 @@ def main():
 
             step += 1
             running_loss += loss.item()
-            if step % 25 == 0:
+            if step % log_every == 0:
                 print(f"epoch {epoch}  step {step}/{total_steps}  "
-                      f"average loss over last 25 steps: {running_loss / 25:.4f}  "
-                      f"elapsed: {time.time() - start:.0f}s")
+                      f"average loss: {running_loss / log_every:.4f}  "
+                      f"elapsed: {(time.time() - start) / 60:.1f} min")
                 running_loss = 0.0
 
-    torch.cuda.synchronize()
-    elapsed = time.time() - start
-    rate = len(y) * epochs / elapsed
-    print()
-    print(f"Training time: {elapsed:.0f} seconds")
-    print(f"Speed: {rate:.1f} comments per second")
-    print(f"Estimated time for one full epoch over {full_size} comments: "
-          f"{full_size / rate / 60:.0f} minutes")
+        torch.cuda.synchronize()
+        train_seconds = time.time() - epoch_start
+
+        # Check progress on the validation comments after every epoch
+        scores = predict_scores(model, val_loader, device)
+        f1s, thresholds = {}, {}
+        for i, label in enumerate(labels):
+            f1s[label], thresholds[label] = best_f1(scores[:, i], y_val[:, i])
+        macro = float(np.mean(list(f1s.values())))
+
+        print()
+        print(f"=== Epoch {epoch} finished. Training took {train_seconds / 60:.1f} min ===")
+        print("Validation, best F1 per label (threshold tuned on validation):")
+        for label in labels:
+            print(f"  {label:14s} F1 {f1s[label]:.3f}   at threshold {thresholds[label]:.2f}")
+        print(f"  macro F1: {macro:.3f}")
+
+        row = {"epoch": epoch, "train_minutes": round(train_seconds / 60, 1), "macro_f1": round(macro, 4)}
+        row.update({f"{l}_f1": round(f1s[l], 4) for l in labels})
+        row.update({f"{l}_threshold": thresholds[l] for l in labels})
+        history.append(row)
+        if not args.sample:
+            pd.DataFrame(history).to_csv(reports_dir / "transformer_epoch_metrics.csv", index=False)
+
+        if macro > best_macro:
+            best_macro = macro
+            save_model(model, tokenizer, labels, out_dir)
+            print(f"Saved as the best model so far to {out_dir}")
+        print()
+
+    total_seconds = time.time() - start
+    print(f"Total time: {total_seconds / 60:.1f} minutes")
     print(f"Peak GPU memory used by tensors: {torch.cuda.max_memory_allocated() / 1024**3:.2f} GB")
     print(f"Peak GPU memory reserved: {torch.cuda.max_memory_reserved() / 1024**3:.2f} GB")
-
     if args.sample:
-        print("Test run: nothing was saved.")
-        return
-
-    out_dir = Path(config["paths"]["models"]) / "transformer"
-    out_dir.mkdir(parents=True, exist_ok=True)
-    model.save_pretrained(out_dir)
-    tokenizer.save_pretrained(out_dir)
-    with open(out_dir / "labels.json", "w") as f:
-        json.dump(labels, f)
-    print("Saved model to", out_dir)
+        rate = len(y) * epochs / (total_seconds)
+        print(f"(Test run only. Rough speed incl. validation: {rate:.1f} comments per second "
+              f"for {full_size} full-size training comments.)")
 
 
 if __name__ == "__main__":
