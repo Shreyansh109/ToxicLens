@@ -51,10 +51,29 @@ python -m venv .venv
 python -m pip install -r requirements.txt
 ```
 
-The project uses PyTorch and Hugging Face Transformers for the transformer model. Install a PyTorch build appropriate for your hardware and CUDA setup, following the official PyTorch installation selector:
+The project uses PyTorch, torchvision, and Hugging Face Transformers for the transformer model.
+
+**Install PyTorch before installing the remaining project dependencies.** Choose the appropriate command for your hardware and operating system using the official PyTorch installation selector:
+
 https://pytorch.org/get-started/locally/
 
-If the project dependencies are not yet fully listed in `requirements.txt`, install the missing packages in the activated environment before continuing.
+For a compatible NVIDIA GPU setup using CUDA 12.8, the following commands are an example:
+
+```powershell
+python -m pip install torch --index-url https://download.pytorch.org/whl/cu128
+python -m pip install torchvision --no-deps --index-url https://download.pytorch.org/whl/cu128
+python -m pip install -r requirements.txt
+```
+
+Use the CUDA 12.8 commands only if they match your hardware and software requirements. Otherwise, follow the official selector. The `torchvision` command above avoids automatically changing the installed PyTorch dependencies; use it only when compatible with the selected PyTorch build.
+
+After installation, verify the environment:
+
+```powershell
+python -c "import torch, torchvision, transformers; print('PyTorch:', torch.__version__); print('torchvision:', torchvision.__version__); print('Transformers:', transformers.__version__); print('CUDA available:', torch.cuda.is_available())"
+```
+
+`CUDA available: True` indicates that PyTorch can access a compatible CUDA GPU. `False` does not necessarily prevent CPU-based inference, although it may be slower.
 
 Place the required Jigsaw training data in `data/raw/`. The preprocessing script expects the dataset files described by the project code.
 
