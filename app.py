@@ -117,15 +117,17 @@ st.markdown(
       justify-content: center;
     }
     .particle-stage svg { width: 100%; height: 100%; overflow: visible; }
-     .particle-cloud { transform-origin: 210px 210px; animation: cloud-float 12s ease-in-out infinite; }
+     .particle-cloud { transform-origin: 210px 210px; animation: exclamation-float 7s ease-in-out infinite; will-change: transform; }
     .particle { transform-box: fill-box; transform-origin: center; animation: triangle-twinkle 4.6s ease-in-out infinite; }
     .particle:nth-child(3n) { animation-delay: -1.2s; }
     .particle:nth-child(4n) { animation-delay: -2.1s; }
     .particle:nth-child(5n) { animation-delay: -3.2s; }
     .ambient { animation: ambient-drift 9s ease-in-out infinite alternate; }
-    @keyframes cloud-float {
-      0%, 100% { transform: translateY(0) rotate(-.5deg); }
-      50% { transform: translateY(-8px) rotate(.5deg); }
+    @keyframes exclamation-float {
+      0%, 100% { transform: translate3d(0, 0, 0) rotate(-1deg); }
+      25% { transform: translate3d(2px, -5px, 0) rotate(.25deg); }
+      50% { transform: translate3d(0, -10px, 0) rotate(1deg); }
+      75% { transform: translate3d(-2px, -5px, 0) rotate(.25deg); }
     }
     @keyframes triangle-twinkle {
       0%, 100% { opacity: .72; }
@@ -179,9 +181,27 @@ st.markdown(
       border-radius: 999px !important;
       padding: .72rem 1.25rem !important;
       min-height: 2.8rem;
-      font-weight: 600 !important;
-      letter-spacing: .025em;
+      font-weight: 800 !important;
+      letter-spacing: .045em;
       transition: filter .15s ease, transform .15s ease;
+    }
+    .stButton > button p {
+      color: var(--white) !important;
+      font-weight: 800 !important;
+    }
+    .score-track {
+      width: 100%;
+      height: 10px;
+      background: #292929;
+      border-radius: 999px;
+      overflow: hidden;
+      margin: 7px 0 9px;
+    }
+    .score-fill {
+      height: 100%;
+      border-radius: 999px;
+      background: linear-gradient(90deg, #8052ff 0%, #b18cff 100%);
+      box-shadow: 0 0 8px rgba(128, 82, 255, .18);
     }
     .stButton > button:hover { filter: brightness(1.12); transform: translateY(-1px); }
     [data-testid="stAlert"] {
@@ -2531,7 +2551,12 @@ if analyse:
                         st.markdown(f"**{label.replace('_', ' ').title()}**")
                     with score_col:
                         st.markdown(f"<div style='text-align:right;color:#bdbdbd'>{score:.4f}</div>", unsafe_allow_html=True)
-                    st.progress(min(max(float(score), 0.0), 1.0))
+                    # Custom HTML bar ensures the visible fill width matches the actual score.
+                    score_pct = min(max(float(score), 0.0), 1.0) * 100
+                    st.markdown(
+                        f'<div class="score-track"><div class="score-fill" style="width:{score_pct:.4f}%"></div></div>',
+                        unsafe_allow_html=True,
+                    )
                     st.caption(f"Configured threshold: {threshold:.2f}")
 
         except Exception as exc:
